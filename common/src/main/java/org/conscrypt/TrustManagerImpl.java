@@ -598,17 +598,34 @@ public final class TrustManagerImpl extends X509ExtendedTrustManager {
                             + candidateIssuer.getSubjectX500Principal(), ex);
                     continue;
                 }
-                used.add(candidateIssuer);
-                untrustedChain.add(candidateIssuer);
-                try {
-                    return checkTrustedRecursive(certs, ocspData, tlsSctData, host, clientAuth,
-                            untrustedChain, trustAnchorChain, used);
-                } catch (CertificateException ex) {
-                    lastException = ex;
-                }
-                // Could not form a valid chain via this certificate, remove it from this chain.
-                used.remove(candidateIssuer);
-                untrustedChain.remove(untrustedChain.size() - 1);
+                
+                TrustAnchor candidateIssuerAsAnchor = findTrustAnchorBySubjectAndPublicKey(candidateIssuer);
+                if (candidateIssuerAsAnchor != null) {
+                    X509Certificate anchorCert = candidateIssuerAsAnchor.getTrustedCert();
+                    trustAnchorChain.add(candidateIssuerAsAnchor);
+                    used.add(anchorCert);
+                    try {
+                        return checkTrustedRecursive(certs, ocspData, tlsSctData, host, clientAuth,
+                                untrustedChain, trustAnchorChain, used);
+                    } catch (CertificateException ex) {
+                        lastException = ex;
+                    }
+                    // Could not form a valid chain via this certificate, remove it from this chain.
+                    trustAnchorChain.remove(trustAnchorChain.size() - 1);
+                    used.remove(anchorCert);
+                } else {
+                    untrustedChain.add(candidateIssuer);
+                    used.add(candidateIssuer);
+                    try {
+                        return checkTrustedRecursive(certs, ocspData, tlsSctData, host, clientAuth,
+                                untrustedChain, trustAnchorChain, used);
+                    } catch (CertificateException ex) {
+                        lastException = ex;
+                    }
+                    // Could not form a valid chain via this certificate, remove it from this chain.
+                    used.remove(candidateIssuer);
+                    untrustedChain.remove(untrustedChain.size() - 1);
+                }                
             }
         }
 
